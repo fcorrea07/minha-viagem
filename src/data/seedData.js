@@ -62,6 +62,7 @@ export const seedItinerary = [
       { id: 'a18', time: '11:30', name: 'Galeria da Academia (David de Michelangelo)', status: 'confirmado' },
       { id: 'a19', time: '14:30', name: 'Mercado Central — frios e queijos', status: 'planejado' },
       { id: 'a20', time: '19:30', name: 'Jantar com bistecca alla fiorentina', status: 'planejado' },
+      { id: 'a21', time: '19:30', name: 'Jantar com bistecca alla fiorentina', status: 'planejado' },
     ],
   },
   {
