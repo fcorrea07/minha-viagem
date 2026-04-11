@@ -1,10 +1,25 @@
 import { useState, useEffect } from 'react'
+
 import Itinerary from './components/Itinerary'
 import Places from './components/Places'
 import Checklist from './components/Checklist'
 import Budget from './components/Budget'
 
-const TABS = [
+// BeforeInstallPromptEvent não está nos tipos padrão do DOM
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>
+  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+type TabId = 'itinerary' | 'places' | 'checklist' | 'budget'
+
+interface Tab {
+  id: TabId
+  label: string
+  icon: string
+}
+
+const TABS: Tab[] = [
   { id: 'itinerary', label: 'Roteiro', icon: '🗺️' },
   { id: 'places', label: 'Lugares', icon: '📍' },
   { id: 'checklist', label: 'Checklist', icon: '✅' },
@@ -12,14 +27,14 @@ const TABS = [
 ]
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('itinerary')
+  const [activeTab, setActiveTab] = useState<TabId>('itinerary')
   const [showInstallBanner, setShowInstallBanner] = useState(false)
-  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
 
   useEffect(() => {
-    const handler = (e) => {
+    const handler = (e: Event) => {
       e.preventDefault()
-      setDeferredPrompt(e)
+      setDeferredPrompt(e as BeforeInstallPromptEvent)
       const dismissed = localStorage.getItem('pwa_install_dismissed')
       if (!dismissed) setShowInstallBanner(true)
     }
@@ -27,9 +42,9 @@ export default function App() {
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
-  const handleInstall = async () => {
+  async function handleInstall(): Promise<void> {
     if (!deferredPrompt) return
-    deferredPrompt.prompt()
+    await deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
     if (outcome === 'accepted') {
       setShowInstallBanner(false)
@@ -37,18 +52,17 @@ export default function App() {
     }
   }
 
-  const dismissBanner = () => {
+  function dismissBanner(): void {
     setShowInstallBanner(false)
     localStorage.setItem('pwa_install_dismissed', '1')
   }
 
-  const renderTab = () => {
+  function renderTab() {
     switch (activeTab) {
       case 'itinerary': return <Itinerary />
       case 'places':    return <Places />
       case 'checklist': return <Checklist />
       case 'budget':    return <Budget />
-      default:          return null
     }
   }
 
@@ -65,7 +79,7 @@ export default function App() {
 
         {/* Tabs */}
         <nav className="max-w-4xl mx-auto px-4 flex gap-0 overflow-x-auto">
-          {TABS.map((tab) => (
+          {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -98,9 +112,7 @@ export default function App() {
       )}
 
       {/* Content */}
-      <main className="max-w-4xl mx-auto px-4 py-6 pb-16">
-        {renderTab()}
-      </main>
+      <main className="max-w-4xl mx-auto px-4 py-6 pb-16">{renderTab()}</main>
     </div>
   )
 }

@@ -1,117 +1,176 @@
 import { useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
+
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { seedPlaces } from '../data/seedData'
+import type { Place, PlaceCategory, PlaceStatus } from '../types'
 
-// Cores por categoria
-const CAT_COLORS = {
-  Museus:       '#4A6FA5',
+const CAT_COLORS: Record<PlaceCategory, string> = {
+  Museus: '#4A6FA5',
   Restaurantes: '#C0714F',
-  Monumentos:   '#2C7A4B',
+  Monumentos: '#2C7A4B',
   Experiências: '#9B59B6',
 }
 
-const STATUS_STYLE = {
-  'quero ir':  'bg-yellow-100 text-yellow-700',
-  confirmado:  'bg-blue-100 text-blue-700',
-  visitado:    'bg-green-100 text-green-700',
+const STATUS_STYLE: Record<PlaceStatus, string> = {
+  'quero ir': 'bg-yellow-100 text-yellow-700',
+  confirmado: 'bg-blue-100 text-blue-700',
+  visitado: 'bg-green-100 text-green-700',
 }
 
-const CITIES      = ['Todas', 'Roma', 'Florença', 'Veneza', 'Barcelona']
-const CATEGORIES  = ['Todas', 'Museus', 'Restaurantes', 'Monumentos', 'Experiências']
+const CITIES = ['Todas', 'Roma', 'Florença', 'Veneza', 'Barcelona'] as const
+const CATEGORIES = ['Todas', 'Museus', 'Restaurantes', 'Monumentos', 'Experiências'] as const
 
-// Ícone colorido (dot) para o mapa
-const dotIcon = (color) =>
-  L.divIcon({
+type CityFilter = (typeof CITIES)[number]
+type CategoryFilter = (typeof CATEGORIES)[number]
+
+// Places com coordenadas garantidas (após filtro)
+type PlaceWithCoords = Place & { lat: number; lng: number }
+
+// ── Ícone colorido para o mapa ────────────────────────────────────────────────
+
+function dotIcon(color: string) {
+  return L.divIcon({
     className: '',
     html: `<div style="width:18px;height:18px;background:${color};border:2.5px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>`,
     iconSize: [18, 18],
     iconAnchor: [9, 9],
   })
+}
 
-// Ajusta o mapa ao bounding box dos marcadores visíveis
-function FitBounds({ places }) {
+// ── FitBounds — ajusta o mapa aos marcadores visíveis ─────────────────────────
+
+interface FitBoundsProps {
+  places: PlaceWithCoords[]
+}
+
+function FitBounds({ places }: FitBoundsProps) {
   const map = useMap()
   useEffect(() => {
     if (places.length === 0) return
-    const bounds = L.latLngBounds(places.map((p) => [p.lat, p.lng]))
+    const bounds = L.latLngBounds(places.map(p => [p.lat, p.lng]))
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 })
   }, [places, map])
   return null
 }
 
-const EMPTY_FORM = {
-  name: '', city: 'Roma', category: 'Monumentos',
-  note: '', status: 'quero ir', lat: '', lng: '',
+// ── PlaceForm state ───────────────────────────────────────────────────────────
+
+interface PlaceFormData {
+  name: string
+  city: string
+  category: PlaceCategory
+  note: string
+  status: PlaceStatus
+  lat: string
+  lng: string
 }
 
+const EMPTY_FORM: PlaceFormData = {
+  name: '',
+  city: 'Roma',
+  category: 'Monumentos',
+  note: '',
+  status: 'quero ir',
+  lat: '',
+  lng: '',
+}
+
+// ── Places ────────────────────────────────────────────────────────────────────
+
 export default function Places() {
-  const [places, setPlaces]           = useLocalStorage('travel_places', seedPlaces)
-  const [filterCity, setFilterCity]   = useState('Todas')
-  const [filterCat, setFilterCat]     = useState('Todas')
-  const [showMap, setShowMap]         = useState(true)
-  const [showForm, setShowForm]       = useState(false)
-  const [editingId, setEditingId]     = useState(null)
-  const [isOffline, setIsOffline]     = useState(!navigator.onLine)
-  const [form, setForm]               = useState(EMPTY_FORM)
+  const [places, setPlaces] = useLocalStorage<Place[]>('travel_places', seedPlaces)
+  const [filterCity, setFilterCity] = useState<CityFilter>('Todas')
+  const [filterCat, setFilterCat] = useState<CategoryFilter>('Todas')
+  const [showMap, setShowMap] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  const [form, setForm] = useState<PlaceFormData>(EMPTY_FORM)
 
   useEffect(() => {
-    const on  = () => setIsOffline(false)
-    const off = () => setIsOffline(true)
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+    const handleOnline = () => setIsOffline(false)
+    const handleOffline = () => setIsOffline(true)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
   }, [])
 
-  const filtered   = places.filter((p) => {
-    const c = filterCity === 'Todas' || p.city === filterCity
-    const k = filterCat  === 'Todas' || p.category === filterCat
-    return c && k
+  const filtered = places.filter(p => {
+    const matchCity = filterCity === 'Todas' || p.city === filterCity
+    const matchCat = filterCat === 'Todas' || p.category === filterCat
+    return matchCity && matchCat
   })
-  const mapPlaces  = filtered.filter((p) => p.lat && p.lng)
 
-  const openAdd = () => {
+  const mapPlaces = filtered.filter((p): p is PlaceWithCoords => p.lat !== null && p.lng !== null)
+
+  function updateField(key: keyof PlaceFormData, val: string): void {
+    setForm(prev => ({ ...prev, [key]: val }))
+  }
+
+  function openAdd(): void {
     setForm(EMPTY_FORM)
     setEditingId(null)
     setShowForm(true)
   }
 
-  const openEdit = (place) => {
+  function openEdit(place: Place): void {
     setForm({
-      name: place.name, city: place.city, category: place.category,
-      note: place.note, status: place.status,
-      lat: place.lat ?? '', lng: place.lng ?? '',
+      name: place.name,
+      city: place.city,
+      category: place.category,
+      note: place.note,
+      status: place.status,
+      lat: place.lat !== null ? String(place.lat) : '',
+      lng: place.lng !== null ? String(place.lng) : '',
     })
     setEditingId(place.id)
     setShowForm(true)
   }
 
-  const handleSave = () => {
+  function handleSave(): void {
     if (!form.name.trim()) return
     const lat = parseFloat(form.lat) || null
     const lng = parseFloat(form.lng) || null
+
     if (editingId) {
-      setPlaces(places.map((p) =>
-        p.id === editingId ? { ...p, ...form, name: form.name.trim(), lat, lng } : p
-      ))
+      setPlaces(prev =>
+        prev.map(p =>
+          p.id === editingId
+            ? { ...p, name: form.name.trim(), city: form.city, category: form.category, note: form.note, status: form.status, lat, lng }
+            : p
+        )
+      )
     } else {
-      setPlaces([...places, { id: `p${Date.now()}`, ...form, name: form.name.trim(), lat, lng }])
+      const newPlace: Place = {
+        id: `p${Date.now()}`,
+        name: form.name.trim(),
+        city: form.city,
+        category: form.category,
+        note: form.note,
+        status: form.status,
+        lat,
+        lng,
+      }
+      setPlaces(prev => [...prev, newPlace])
     }
     setShowForm(false)
     setEditingId(null)
   }
 
-  const handleDelete = (id) => {
+  function handleDelete(id: string): void {
     if (window.confirm('Remover este lugar?')) {
-      setPlaces(places.filter((p) => p.id !== id))
+      setPlaces(prev => prev.filter(p => p.id !== id))
     }
   }
 
-  const updateStatus = (id, status) =>
-    setPlaces(places.map((p) => (p.id === id ? { ...p, status } : p)))
-
-  const f = (key, val) => setForm((prev) => ({ ...prev, [key]: val }))
+  function updateStatus(id: string, status: PlaceStatus): void {
+    setPlaces(prev => prev.map(p => (p.id === id ? { ...p, status } : p)))
+  }
 
   return (
     <div>
@@ -149,31 +208,45 @@ export default function Places() {
             <div className="col-span-2">
               <label className="text-xs text-gray-500 block mb-1">Nome</label>
               <input
-                type="text" value={form.name} onChange={(e) => f('name', e.target.value)}
-                placeholder="Ex: Coliseu" autoFocus
+                type="text"
+                value={form.name}
+                onChange={e => updateField('name', e.target.value)}
+                placeholder="Ex: Coliseu"
+                autoFocus
                 className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
               />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Cidade</label>
-              <select value={form.city} onChange={(e) => f('city', e.target.value)}
-                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white">
-                {['Roma', 'Florença', 'Veneza', 'Barcelona'].map((c) => (
+              <select
+                value={form.city}
+                onChange={e => updateField('city', e.target.value)}
+                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
+              >
+                {['Roma', 'Florença', 'Veneza', 'Barcelona'].map(c => (
                   <option key={c}>{c}</option>
                 ))}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Categoria</label>
-              <select value={form.category} onChange={(e) => f('category', e.target.value)}
-                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white">
-                {CATEGORIES.slice(1).map((c) => <option key={c}>{c}</option>)}
+              <select
+                value={form.category}
+                onChange={e => updateField('category', e.target.value)}
+                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
+              >
+                {CATEGORIES.slice(1).map(c => (
+                  <option key={c}>{c}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Status</label>
-              <select value={form.status} onChange={(e) => f('status', e.target.value)}
-                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white">
+              <select
+                value={form.status}
+                onChange={e => updateField('status', e.target.value)}
+                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
+              >
                 <option value="quero ir">Quero ir</option>
                 <option value="confirmado">Confirmado</option>
                 <option value="visitado">Visitado</option>
@@ -181,32 +254,49 @@ export default function Places() {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">
-                Lat / Lng{' '}
-                <span className="text-gray-400 font-normal">(opcional)</span>
+                Lat / Lng <span className="text-gray-400 font-normal">(opcional)</span>
               </label>
               <div className="flex gap-1">
-                <input type="number" step="any" value={form.lat}
-                  onChange={(e) => f('lat', e.target.value)}
-                  placeholder="Lat" className="w-full border border-sand rounded-lg px-2 py-2 text-sm bg-white" />
-                <input type="number" step="any" value={form.lng}
-                  onChange={(e) => f('lng', e.target.value)}
-                  placeholder="Lng" className="w-full border border-sand rounded-lg px-2 py-2 text-sm bg-white" />
+                <input
+                  type="number"
+                  step="any"
+                  value={form.lat}
+                  onChange={e => updateField('lat', e.target.value)}
+                  placeholder="Lat"
+                  className="w-full border border-sand rounded-lg px-2 py-2 text-sm bg-white"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  value={form.lng}
+                  onChange={e => updateField('lng', e.target.value)}
+                  placeholder="Lng"
+                  className="w-full border border-sand rounded-lg px-2 py-2 text-sm bg-white"
+                />
               </div>
             </div>
             <div className="col-span-2">
               <label className="text-xs text-gray-500 block mb-1">Nota pessoal</label>
-              <input type="text" value={form.note} onChange={(e) => f('note', e.target.value)}
+              <input
+                type="text"
+                value={form.note}
+                onChange={e => updateField('note', e.target.value)}
                 placeholder="Dicas, observações..."
-                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white" />
+                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
+              />
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button onClick={handleSave}
-              className="px-4 py-2 bg-terra text-white rounded-lg text-sm">
+            <button
+              onClick={handleSave}
+              className="px-4 py-2 bg-terra text-white rounded-lg text-sm"
+            >
               Salvar
             </button>
-            <button onClick={() => setShowForm(false)}
-              className="px-4 py-2 text-gray-500 text-sm">
+            <button
+              onClick={() => setShowForm(false)}
+              className="px-4 py-2 text-gray-500 text-sm"
+            >
               Cancelar
             </button>
           </div>
@@ -216,21 +306,27 @@ export default function Places() {
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-5">
         <div className="flex gap-0.5 bg-white border border-sand rounded-xl p-1">
-          {CITIES.map((city) => (
-            <button key={city} onClick={() => setFilterCity(city)}
+          {CITIES.map(city => (
+            <button
+              key={city}
+              onClick={() => setFilterCity(city)}
               className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                 filterCity === city ? 'bg-sand text-ink font-medium' : 'text-gray-500 hover:text-ink'
-              }`}>
+              }`}
+            >
               {city}
             </button>
           ))}
         </div>
         <div className="flex gap-0.5 bg-white border border-sand rounded-xl p-1 flex-wrap">
-          {CATEGORIES.map((cat) => (
-            <button key={cat} onClick={() => setFilterCat(cat)}
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setFilterCat(cat)}
               className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                 filterCat === cat ? 'bg-sand text-ink font-medium' : 'text-gray-500 hover:text-ink'
-              }`}>
+              }`}
+            >
               {cat}
             </button>
           ))}
@@ -261,11 +357,11 @@ export default function Places() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {mapPlaces.map((place) => (
+            {mapPlaces.map(place => (
               <Marker
                 key={place.id}
                 position={[place.lat, place.lng]}
-                icon={dotIcon(CAT_COLORS[place.category] || '#888')}
+                icon={dotIcon(CAT_COLORS[place.category])}
               >
                 <Popup>
                   <div className="text-sm leading-snug">
@@ -285,7 +381,7 @@ export default function Places() {
 
           {/* Legend */}
           <div className="absolute bottom-3 right-3 z-[400] bg-white rounded-xl border border-sand px-3 py-2 text-xs space-y-1.5 shadow-sm">
-            {Object.entries(CAT_COLORS).map(([cat, color]) => (
+            {(Object.entries(CAT_COLORS) as [PlaceCategory, string][]).map(([cat, color]) => (
               <div key={cat} className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
                 <span className="text-gray-600">{cat}</span>
@@ -297,14 +393,14 @@ export default function Places() {
 
       {/* List */}
       <div className="space-y-2">
-        {filtered.map((place) => (
+        {filtered.map(place => (
           <div
             key={place.id}
             className="bg-white rounded-2xl border border-sand p-4 flex items-start gap-3"
           >
             <div
               className="w-3 h-3 rounded-full mt-1.5 shrink-0"
-              style={{ backgroundColor: CAT_COLORS[place.category] || '#888' }}
+              style={{ backgroundColor: CAT_COLORS[place.category] }}
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -317,7 +413,7 @@ export default function Places() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <select
                     value={place.status}
-                    onChange={(e) => updateStatus(place.id, e.target.value)}
+                    onChange={e => updateStatus(place.id, e.target.value as PlaceStatus)}
                     className={`text-xs px-2 py-1 rounded-full border-0 cursor-pointer ${STATUS_STYLE[place.status]}`}
                   >
                     <option value="quero ir">Quero ir</option>
@@ -339,9 +435,7 @@ export default function Places() {
                 </div>
               </div>
               {place.note && (
-                <p className="text-xs text-gray-500 mt-1.5 italic leading-relaxed">
-                  {place.note}
-                </p>
+                <p className="text-xs text-gray-500 mt-1.5 italic leading-relaxed">{place.note}</p>
               )}
             </div>
           </div>

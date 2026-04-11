@@ -1,44 +1,54 @@
 import { useState } from 'react'
+
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { seedItinerary } from '../data/seedData'
+import type { Activity, ActivityStatus, ItineraryDay } from '../types'
 
-const STATUS_STYLE = {
-  planejado:  'bg-gray-100 text-gray-600',
+const STATUS_STYLE: Record<ActivityStatus, string> = {
+  planejado: 'bg-gray-100 text-gray-600',
   confirmado: 'bg-blue-100 text-blue-700',
-  concluído:  'bg-green-100 text-green-700',
+  concluído: 'bg-green-100 text-green-700',
 }
 
-const STATUS_LABEL = {
-  planejado:  'Planejado',
+const STATUS_LABEL: Record<ActivityStatus, string> = {
+  planejado: 'Planejado',
   confirmado: 'Confirmado',
-  concluído:  'Concluído',
+  concluído: 'Concluído',
 }
 
-function ActivityForm({ initial = {}, onSave, onCancel }) {
-  const [time, setTime]     = useState(initial.time || '')
-  const [name, setName]     = useState(initial.name || '')
-  const [status, setStatus] = useState(initial.status || 'planejado')
+// ── ActivityForm ──────────────────────────────────────────────────────────────
 
-  const submit = (e) => {
+interface ActivityFormProps {
+  initial?: Partial<Omit<Activity, 'id'>>
+  onSave: (activity: Omit<Activity, 'id'>) => void
+  onCancel: () => void
+}
+
+function ActivityForm({ initial = {}, onSave, onCancel }: ActivityFormProps) {
+  const [time, setTime] = useState(initial.time ?? '')
+  const [name, setName] = useState(initial.name ?? '')
+  const [status, setStatus] = useState<ActivityStatus>(initial.status ?? 'planejado')
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
     onSave({ time, name: name.trim(), status })
   }
 
   return (
-    <form onSubmit={submit} className="mt-3 p-3 bg-gray-50 rounded-xl space-y-2">
+    <form onSubmit={handleSubmit} className="mt-3 p-3 bg-gray-50 rounded-xl space-y-2">
       <div className="flex gap-2">
         <input
           type="time"
           value={time}
-          onChange={(e) => setTime(e.target.value)}
+          onChange={e => setTime(e.target.value)}
           className="border border-sand rounded-lg px-3 py-2 text-sm w-28 bg-white"
         />
         <input
           type="text"
           placeholder="Nome da atividade"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={e => setName(e.target.value)}
           className="border border-sand rounded-lg px-3 py-2 text-sm flex-1 bg-white"
           required
           autoFocus
@@ -47,7 +57,7 @@ function ActivityForm({ initial = {}, onSave, onCancel }) {
       <div className="flex items-center gap-2">
         <select
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          onChange={e => setStatus(e.target.value as ActivityStatus)}
           className="border border-sand rounded-lg px-3 py-2 text-sm bg-white"
         >
           <option value="planejado">Planejado</option>
@@ -74,32 +84,40 @@ function ActivityForm({ initial = {}, onSave, onCancel }) {
   )
 }
 
-function DayCard({ day, onUpdateDay, onDeleteDay }) {
-  const [showAddActivity, setShowAddActivity]   = useState(false)
-  const [editingActivityId, setEditingActivity] = useState(null)
-  const [editingDay, setEditingDay]             = useState(false)
-  const [dayCity, setDayCity]                   = useState(day.city)
-  const [dayDate, setDayDate]                   = useState(day.date)
+// ── DayCard ───────────────────────────────────────────────────────────────────
 
-  const addActivity = ({ time, name, status }) => {
-    const newAct = { id: `a${Date.now()}`, time, name, status }
+interface DayCardProps {
+  day: ItineraryDay
+  onUpdateDay: (day: ItineraryDay) => void
+  onDeleteDay: (id: string) => void
+}
+
+function DayCard({ day, onUpdateDay, onDeleteDay }: DayCardProps) {
+  const [showAddActivity, setShowAddActivity] = useState(false)
+  const [editingActivityId, setEditingActivity] = useState<string | null>(null)
+  const [editingDay, setEditingDay] = useState(false)
+  const [dayCity, setDayCity] = useState(day.city)
+  const [dayDate, setDayDate] = useState(day.date)
+
+  function addActivity(activity: Omit<Activity, 'id'>): void {
+    const newAct: Activity = { id: `a${Date.now()}`, ...activity }
     onUpdateDay({ ...day, activities: [...day.activities, newAct] })
     setShowAddActivity(false)
   }
 
-  const updateActivity = (id, updated) => {
+  function updateActivity(id: string, updated: Omit<Activity, 'id'>): void {
     onUpdateDay({
       ...day,
-      activities: day.activities.map((a) => (a.id === id ? { ...a, ...updated } : a)),
+      activities: day.activities.map(a => (a.id === id ? { ...a, ...updated } : a)),
     })
     setEditingActivity(null)
   }
 
-  const deleteActivity = (id) => {
-    onUpdateDay({ ...day, activities: day.activities.filter((a) => a.id !== id) })
+  function deleteActivity(id: string): void {
+    onUpdateDay({ ...day, activities: day.activities.filter(a => a.id !== id) })
   }
 
-  const saveDay = () => {
+  function saveDay(): void {
     onUpdateDay({ ...day, city: dayCity, date: dayDate })
     setEditingDay(false)
   }
@@ -120,20 +138,17 @@ function DayCard({ day, onUpdateDay, onDeleteDay }) {
           <input
             type="date"
             value={dayDate}
-            onChange={(e) => setDayDate(e.target.value)}
+            onChange={e => setDayDate(e.target.value)}
             className="border border-sand rounded-lg px-3 py-2 text-sm bg-white"
           />
           <input
             type="text"
             value={dayCity}
-            onChange={(e) => setDayCity(e.target.value)}
+            onChange={e => setDayCity(e.target.value)}
             className="border border-sand rounded-lg px-3 py-2 text-sm flex-1 min-w-28 bg-white"
             placeholder="Cidade"
           />
-          <button
-            onClick={saveDay}
-            className="px-4 py-2 text-sm bg-terra text-white rounded-lg"
-          >
+          <button onClick={saveDay} className="px-4 py-2 text-sm bg-terra text-white rounded-lg">
             OK
           </button>
           <button
@@ -172,12 +187,12 @@ function DayCard({ day, onUpdateDay, onDeleteDay }) {
 
       {/* Activities */}
       <div className="space-y-2">
-        {sorted.map((act) =>
+        {sorted.map(act =>
           editingActivityId === act.id ? (
             <ActivityForm
               key={act.id}
               initial={act}
-              onSave={(u) => updateActivity(act.id, u)}
+              onSave={updated => updateActivity(act.id, updated)}
               onCancel={() => setEditingActivity(null)}
             />
           ) : (
@@ -214,10 +229,7 @@ function DayCard({ day, onUpdateDay, onDeleteDay }) {
 
       {/* Add activity */}
       {showAddActivity ? (
-        <ActivityForm
-          onSave={addActivity}
-          onCancel={() => setShowAddActivity(false)}
-        />
+        <ActivityForm onSave={addActivity} onCancel={() => setShowAddActivity(false)} />
       ) : (
         <button
           onClick={() => setShowAddActivity(true)}
@@ -231,47 +243,53 @@ function DayCard({ day, onUpdateDay, onDeleteDay }) {
   )
 }
 
+// ── Itinerary ─────────────────────────────────────────────────────────────────
+
+type CountryKey = 'Itália' | 'Espanha'
+
+const FLAG_MAP: Record<CountryKey, string> = { Itália: '🇮🇹', Espanha: '🇪🇸' }
+const COUNTRY_ORDER: CountryKey[] = ['Itália', 'Espanha']
+
 export default function Itinerary() {
-  const [days, setDays]     = useLocalStorage('travel_itinerary', seedItinerary)
+  const [days, setDays] = useLocalStorage<ItineraryDay[]>('travel_itinerary', seedItinerary)
   const [showAddDay, setShowAddDay] = useState(false)
-  const [newDate, setNewDate]       = useState('')
-  const [newCity, setNewCity]       = useState('')
-  const [newCountry, setNewCountry] = useState('Itália')
+  const [newDate, setNewDate] = useState('')
+  const [newCity, setNewCity] = useState('')
+  const [newCountry, setNewCountry] = useState<CountryKey>('Itália')
 
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date))
 
-  const grouped = sorted.reduce((acc, day) => {
+  const grouped = sorted.reduce<Record<string, ItineraryDay[]>>((acc, day) => {
     const key = day.country || 'Outros'
     acc[key] = acc[key] ? [...acc[key], day] : [day]
     return acc
   }, {})
 
-  const countryOrder = ['Itália', 'Espanha', 'Outros']
-  const orderedKeys  = Object.keys(grouped).sort(
-    (a, b) => countryOrder.indexOf(a) - countryOrder.indexOf(b)
+  const orderedKeys = Object.keys(grouped).sort(
+    (a, b) => COUNTRY_ORDER.indexOf(a as CountryKey) - COUNTRY_ORDER.indexOf(b as CountryKey)
   )
 
-  const updateDay = (updated) =>
-    setDays(days.map((d) => (d.id === updated.id ? updated : d)))
+  function updateDay(updated: ItineraryDay): void {
+    setDays(prev => prev.map(d => (d.id === updated.id ? updated : d)))
+  }
 
-  const deleteDay = (id) => {
+  function deleteDay(id: string): void {
     if (window.confirm('Remover este dia do roteiro?')) {
-      setDays(days.filter((d) => d.id !== id))
+      setDays(prev => prev.filter(d => d.id !== id))
     }
   }
 
-  const addDay = () => {
+  function addDay(): void {
     if (!newDate || !newCity.trim()) return
-    const flagMap = { Itália: '🇮🇹', Espanha: '🇪🇸' }
-    const newDay = {
+    const newDay: ItineraryDay = {
       id: `d${Date.now()}`,
       date: newDate,
       city: newCity.trim(),
       country: newCountry,
-      flag: flagMap[newCountry] || '🌍',
+      flag: FLAG_MAP[newCountry] ?? '🌍',
       activities: [],
     }
-    setDays([...days, newDay])
+    setDays(prev => [...prev, newDay])
     setNewDate('')
     setNewCity('')
     setShowAddDay(false)
@@ -301,19 +319,19 @@ export default function Itinerary() {
             <input
               type="date"
               value={newDate}
-              onChange={(e) => setNewDate(e.target.value)}
+              onChange={e => setNewDate(e.target.value)}
               className="border border-sand rounded-lg px-3 py-2 text-sm bg-white"
             />
             <input
               type="text"
               placeholder="Cidade"
               value={newCity}
-              onChange={(e) => setNewCity(e.target.value)}
+              onChange={e => setNewCity(e.target.value)}
               className="border border-sand rounded-lg px-3 py-2 text-sm flex-1 min-w-32 bg-white"
             />
             <select
               value={newCountry}
-              onChange={(e) => setNewCountry(e.target.value)}
+              onChange={e => setNewCountry(e.target.value as CountryKey)}
               className="border border-sand rounded-lg px-3 py-2 text-sm bg-white"
             >
               <option value="Itália">🇮🇹 Itália</option>
@@ -338,14 +356,14 @@ export default function Itinerary() {
       )}
 
       {/* Days grouped by country */}
-      {orderedKeys.map((country) => (
+      {orderedKeys.map(country => (
         <div key={country} className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-px flex-1 bg-sand" />
             <span className="text-sm font-medium text-gray-400 px-1">{country}</span>
             <div className="h-px flex-1 bg-sand" />
           </div>
-          {grouped[country].map((day) => (
+          {grouped[country].map(day => (
             <DayCard
               key={day.id}
               day={day}

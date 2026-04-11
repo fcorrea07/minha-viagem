@@ -1,4 +1,11 @@
-export const seedItinerary = [
+import type {
+  ItineraryDay,
+  Place,
+  ChecklistGroup,
+  BudgetData,
+} from '../types'
+
+export const seedItinerary: ItineraryDay[] = [
   {
     id: '1',
     date: '2024-09-10',
@@ -62,7 +69,6 @@ export const seedItinerary = [
       { id: 'a18', time: '11:30', name: 'Galeria da Academia (David de Michelangelo)', status: 'confirmado' },
       { id: 'a19', time: '14:30', name: 'Mercado Central — frios e queijos', status: 'planejado' },
       { id: 'a20', time: '19:30', name: 'Jantar com bistecca alla fiorentina', status: 'planejado' },
-      { id: 'a21', time: '19:30', name: 'Jantar com bistecca alla fiorentina', status: 'planejado' },
     ],
   },
   {
@@ -143,7 +149,7 @@ export const seedItinerary = [
   },
 ]
 
-export const seedPlaces = [
+export const seedPlaces: Place[] = [
   // Roma
   { id: 'p1', name: 'Coliseu', city: 'Roma', category: 'Monumentos', note: 'Comprar ingresso online com antecedência!', status: 'confirmado', lat: 41.8902, lng: 12.4922 },
   { id: 'p2', name: 'Vaticano e Museus', city: 'Roma', category: 'Monumentos', note: 'Reservar museus com semanas de antecedência', status: 'confirmado', lat: 41.9029, lng: 12.4534 },
@@ -173,7 +179,7 @@ export const seedPlaces = [
   { id: 'p23', name: 'Barceloneta', city: 'Barcelona', category: 'Experiências', note: 'Praia urbana perfeita para almoçar ao sol', status: 'quero ir', lat: 41.3768, lng: 2.1922 },
 ]
 
-export const seedChecklist = [
+export const seedChecklist: ChecklistGroup[] = [
   {
     id: 'g1',
     group: 'Documentos',
@@ -234,7 +240,7 @@ export const seedChecklist = [
   },
 ]
 
-export const seedBudget = {
+export const seedBudget: BudgetData = {
   totalBudget: 8000,
   brlRate: 5.5,
   expenses: [
