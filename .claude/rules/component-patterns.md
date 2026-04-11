@@ -2,31 +2,89 @@
 
 ## Estrutura de Componente Padrão
 
-```jsx
+```tsx
 import { useState } from 'react'
 import { IconName } from 'lucide-react'
+
 import useLocalStorage from '../hooks/useLocalStorage'
+import type { TravelItem } from '../types'
 
-export default function MySection() {
-  const [items, setItems] = useLocalStorage('travel_key', [])
-  const [localState, setLocalState] = useState(null)
+interface MySectionProps {
+  title?: string
+}
 
-  // Handlers antes do return
-  function handleAdd(item) { ... }
-  function handleDelete(id) { ... }
+export default function MySection({ title = 'Seção' }: MySectionProps) {
+  const [items, setItems] = useLocalStorage<TravelItem[]>('travel_key', [])
+  const [localState, setLocalState] = useState<TravelItem | null>(null)
+
+  function handleAdd(item: Omit<TravelItem, 'id'>): void {
+    setItems(prev => [...prev, { id: Date.now(), ...item }])
+  }
+
+  function handleDelete(id: number): void {
+    setItems(prev => prev.filter(i => i.id !== id))
+  }
 
   return (
-    <div className="...">
-      {/* JSX aqui */}
+    <div className="p-4 max-w-4xl mx-auto">
+      <h2 className="text-2xl font-semibold text-[#2C2C2C] mb-6">{title}</h2>
     </div>
   )
 }
 ```
 
+## Tipos de Dados — `src/types/index.ts`
+
+Defina todos os modelos de dados em `src/types/`:
+
+```ts
+// src/types/index.ts
+
+export type ItineraryStatus = 'planejado' | 'confirmado' | 'concluído'
+export type PlaceCategory = 'museu' | 'restaurante' | 'monumento' | 'experiência'
+export type PlaceStatus = 'quero ir' | 'confirmado' | 'visitado'
+export type BudgetCategory = 'hospedagem' | 'alimentação' | 'transporte' | 'atrações' | 'compras' | 'outros'
+
+export interface ItineraryDay {
+  id: number
+  date: string
+  city: string
+  activities: string[]
+  status: ItineraryStatus
+}
+
+export interface Place {
+  id: number
+  name: string
+  city: string
+  category: PlaceCategory
+  status: PlaceStatus
+  note?: string
+}
+
+export interface ChecklistItem {
+  id: number
+  label: string
+  group: string
+  checked: boolean
+  note?: string
+}
+
+export interface BudgetEntry {
+  id: number
+  description: string
+  category: BudgetCategory
+  amountEur: number
+}
+```
+
 ## Persistência de Dados
 
-- **Sempre usar `useLocalStorage`** para dados que precisam persistir
-- Chaves de localStorage definidas em `src/data/seedData.js`:
+- **Sempre usar `useLocalStorage`** com tipo genérico para dados persistidos:
+  ```ts
+  const [places, setPlaces] = useLocalStorage<Place[]>('travel_places', [])
+  ```
+- Chaves de localStorage definidas em `src/data/seedData.ts`:
   - `travel_itinerary` — roteiro
   - `travel_places` — lugares
   - `travel_checklist` — checklist
@@ -35,35 +93,44 @@ export default function MySection() {
 
 ## Padrão de Adição/Edição
 
-```jsx
-// Estado para controle de formulário
+```tsx
 const [showForm, setShowForm] = useState(false)
-const [editingItem, setEditingItem] = useState(null)
+const [editingItem, setEditingItem] = useState<Place | null>(null)
 
-// Salvar: cria novo ou atualiza existente
-function handleSave(formData) {
+function handleSave(formData: Omit<Place, 'id'>): void {
   if (editingItem) {
-    setItems(items.map(i => i.id === editingItem.id ? { ...i, ...formData } : i))
+    setPlaces(prev =>
+      prev.map(p => (p.id === editingItem.id ? { ...p, ...formData } : p))
+    )
   } else {
-    setItems([...items, { id: Date.now(), ...formData }])
+    setPlaces(prev => [...prev, { id: Date.now(), ...formData }])
   }
   setShowForm(false)
   setEditingItem(null)
+}
+
+function handleEdit(place: Place): void {
+  setEditingItem(place)
+  setShowForm(true)
+}
+
+function handleDelete(id: number): void {
+  setPlaces(prev => prev.filter(p => p.id !== id))
 }
 ```
 
 ## IDs de Itens
 
 - Usar `Date.now()` como ID para novos itens (suficiente para uso offline)
-- Sem UUID externo — o projeto não tem dependência para isso
+- O tipo do campo é `number`, não `string`
 
 ## Status dos Itens
 
-Cada seção tem seus próprios valores de status:
-- **Roteiro:** `planejado` | `confirmado` | `concluído`
-- **Lugares:** `quero ir` | `confirmado` | `visitado`
-- **Checklist:** booleano (`checked: true/false`)
-- **Gastos:** sem status — apenas categoria e valor
+Use os union types definidos em `src/types/`:
+- **Roteiro:** `ItineraryStatus` → `'planejado' | 'confirmado' | 'concluído'`
+- **Lugares:** `PlaceStatus` → `'quero ir' | 'confirmado' | 'visitado'`
+- **Checklist:** campo `checked: boolean`
+- **Gastos:** `BudgetCategory` → sem status, apenas categoria e valor
 
 ## Responsividade
 
