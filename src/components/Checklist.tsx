@@ -1,30 +1,37 @@
 import { useState } from 'react'
+
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { seedChecklist } from '../data/seedData'
+import type { ChecklistGroup } from '../types'
+
+interface EditingNote {
+  groupId: string
+  itemId: string
+}
 
 export default function Checklist() {
-  const [groups, setGroups] = useLocalStorage('travel_checklist', seedChecklist)
-  const [editingNote, setEditingNote] = useState(null) // { groupId, itemId }
+  const [groups, setGroups] = useLocalStorage<ChecklistGroup[]>('travel_checklist', seedChecklist)
+  const [editingNote, setEditingNote] = useState<EditingNote | null>(null)
 
-  const allItems   = groups.flatMap((g) => g.items)
-  const doneCount  = allItems.filter((i) => i.done).length
-  const progress   = allItems.length ? Math.round((doneCount / allItems.length) * 100) : 0
+  const allItems = groups.flatMap(g => g.items)
+  const doneCount = allItems.filter(i => i.done).length
+  const progress = allItems.length ? Math.round((doneCount / allItems.length) * 100) : 0
 
-  const toggleItem = (groupId, itemId) => {
-    setGroups(
-      groups.map((g) =>
+  function toggleItem(groupId: string, itemId: string): void {
+    setGroups(prev =>
+      prev.map(g =>
         g.id === groupId
-          ? { ...g, items: g.items.map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)) }
+          ? { ...g, items: g.items.map(i => (i.id === itemId ? { ...i, done: !i.done } : i)) }
           : g
       )
     )
   }
 
-  const updateNote = (groupId, itemId, note) => {
-    setGroups(
-      groups.map((g) =>
+  function updateNote(groupId: string, itemId: string, note: string): void {
+    setGroups(prev =>
+      prev.map(g =>
         g.id === groupId
-          ? { ...g, items: g.items.map((i) => (i.id === itemId ? { ...i, note } : i)) }
+          ? { ...g, items: g.items.map(i => (i.id === itemId ? { ...i, note } : i)) }
           : g
       )
     )
@@ -66,8 +73,8 @@ export default function Checklist() {
 
       {/* Groups */}
       <div className="space-y-4">
-        {groups.map((group) => {
-          const groupDone  = group.items.filter((i) => i.done).length
+        {groups.map(group => {
+          const groupDone = group.items.filter(i => i.done).length
           const groupTotal = group.items.length
 
           return (
@@ -90,7 +97,7 @@ export default function Checklist() {
 
               {/* Items */}
               <div className="divide-y divide-sand/60">
-                {group.items.map((item) => {
+                {group.items.map(item => {
                   const isEditingNote =
                     editingNote?.groupId === group.id && editingNote?.itemId === item.id
 
@@ -109,16 +116,24 @@ export default function Checklist() {
                         >
                           {item.done && (
                             <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                              <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path
+                                d="M1 4L3.5 6.5L9 1"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
                             </svg>
                           )}
                         </button>
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm leading-relaxed transition-colors ${
-                            item.done ? 'line-through text-gray-400' : 'text-ink'
-                          }`}>
+                          <p
+                            className={`text-sm leading-relaxed transition-colors ${
+                              item.done ? 'line-through text-gray-400' : 'text-ink'
+                            }`}
+                          >
                             {item.text}
                           </p>
 
@@ -127,9 +142,9 @@ export default function Checklist() {
                             <input
                               type="text"
                               value={item.note}
-                              onChange={(e) => updateNote(group.id, item.id, e.target.value)}
+                              onChange={e => updateNote(group.id, item.id, e.target.value)}
                               onBlur={() => setEditingNote(null)}
-                              onKeyDown={(e) => e.key === 'Enter' && setEditingNote(null)}
+                              onKeyDown={e => e.key === 'Enter' && setEditingNote(null)}
                               placeholder="Adicionar nota..."
                               autoFocus
                               className="mt-1.5 w-full text-xs border-b border-sand focus:border-terra outline-none text-gray-500 py-0.5 bg-transparent"

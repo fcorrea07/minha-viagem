@@ -224,3 +224,7 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Claude Code — arquivos pessoais (não commitar)
+CLAUDE.local.md
+.claude/settings.local.json

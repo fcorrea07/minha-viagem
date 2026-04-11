@@ -1,66 +1,110 @@
 import { useState } from 'react'
-import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
-} from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { seedBudget } from '../data/seedData'
+import type { BudgetCategory, BudgetData, Expense } from '../types'
 
-const CATEGORIES = ['Hospedagem', 'Alimentação', 'Transporte', 'Atrações', 'Compras', 'Outros']
-const CAT_COLORS  = ['#4A6FA5', '#C0714F', '#2C7A4B', '#9B59B6', '#E8A838', '#888888']
+const CATEGORIES: BudgetCategory[] = [
+  'Hospedagem',
+  'Alimentação',
+  'Transporte',
+  'Atrações',
+  'Compras',
+  'Outros',
+]
 
-const fmt = (v) =>
-  new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)
+const CAT_COLORS: Record<BudgetCategory, string> = {
+  Hospedagem: '#4A6FA5',
+  Alimentação: '#C0714F',
+  Transporte: '#2C7A4B',
+  Atrações: '#9B59B6',
+  Compras: '#E8A838',
+  Outros: '#888888',
+}
 
-const EMPTY_FORM = {
+function fmt(value: number): string {
+  return new Intl.NumberFormat('de-DE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+interface ExpenseFormData {
+  description: string
+  category: BudgetCategory
+  amount: string
+  date: string
+}
+
+const EMPTY_FORM: ExpenseFormData = {
   description: '',
   category: 'Alimentação',
   amount: '',
   date: new Date().toISOString().split('T')[0],
 }
 
+interface CategoryData {
+  name: BudgetCategory
+  value: number
+  color: string
+}
+
 export default function Budget() {
-  const [budget, setBudget]       = useLocalStorage('travel_budget', seedBudget)
-  const [showForm, setShowForm]   = useState(false)
+  const [budget, setBudget] = useLocalStorage<BudgetData>('travel_budget', seedBudget)
+  const [showForm, setShowForm] = useState(false)
   const [editBudget, setEditBudget] = useState(false)
-  const [form, setForm]           = useState(EMPTY_FORM)
-  const [tempTotal, setTempTotal] = useState(budget.totalBudget)
-  const [tempRate, setTempRate]   = useState(budget.brlRate)
+  const [form, setForm] = useState<ExpenseFormData>(EMPTY_FORM)
+  const [tempTotal, setTempTotal] = useState(() => String(budget.totalBudget))
+  const [tempRate, setTempRate] = useState(() => String(budget.brlRate))
 
-  const expenses    = budget.expenses ?? []
-  const totalSpent  = expenses.reduce((sum, e) => sum + e.amount, 0)
-  const remaining   = budget.totalBudget - totalSpent
-  const pctUsed     = budget.totalBudget ? Math.min(100, Math.round((totalSpent / budget.totalBudget) * 100)) : 0
+  const expenses = budget.expenses ?? []
+  const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0)
+  const remaining = budget.totalBudget - totalSpent
+  const pctUsed = budget.totalBudget
+    ? Math.min(100, Math.round((totalSpent / budget.totalBudget) * 100))
+    : 0
 
-  const byCategory = CATEGORIES.map((cat, i) => ({
+  const byCategory: CategoryData[] = CATEGORIES.map(cat => ({
     name: cat,
-    value: expenses.filter((e) => e.category === cat).reduce((sum, e) => sum + e.amount, 0),
-    color: CAT_COLORS[i],
-  })).filter((c) => c.value > 0)
+    value: expenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0),
+    color: CAT_COLORS[cat],
+  })).filter(c => c.value > 0)
 
-  const f = (key, val) => setForm((prev) => ({ ...prev, [key]: val }))
+  function updateField(key: keyof ExpenseFormData, val: string): void {
+    setForm(prev => ({ ...prev, [key]: val }))
+  }
 
-  const addExpense = () => {
+  function addExpense(): void {
     if (!form.description.trim() || !form.amount) return
-    const newExp = {
+    const newExpense: Expense = {
       id: `e${Date.now()}`,
-      ...form,
       description: form.description.trim(),
+      category: form.category,
       amount: parseFloat(form.amount),
+      date: form.date,
     }
-    setBudget({ ...budget, expenses: [...expenses, newExp] })
+    setBudget(prev => ({ ...prev, expenses: [...prev.expenses, newExpense] }))
     setForm(EMPTY_FORM)
     setShowForm(false)
   }
 
-  const deleteExpense = (id) =>
-    setBudget({ ...budget, expenses: expenses.filter((e) => e.id !== id) })
+  function deleteExpense(id: string): void {
+    setBudget(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== id) }))
+  }
 
-  const saveBudgetSettings = () => {
-    setBudget({
-      ...budget,
+  function openEditBudget(): void {
+    setTempTotal(String(budget.totalBudget))
+    setTempRate(String(budget.brlRate))
+    setEditBudget(!editBudget)
+  }
+
+  function saveBudgetSettings(): void {
+    setBudget(prev => ({
+      ...prev,
       totalBudget: parseFloat(tempTotal) || 0,
       brlRate: parseFloat(tempRate) || 1,
-    })
+    }))
     setEditBudget(false)
   }
 
@@ -86,10 +130,7 @@ export default function Budget() {
       <div className="bg-white rounded-2xl border border-sand p-5 mb-5">
         <div className="flex items-start justify-between mb-5">
           <h3 className="font-semibold text-ink">Resumo do orçamento</h3>
-          <button
-            onClick={() => { setTempTotal(budget.totalBudget); setTempRate(budget.brlRate); setEditBudget(!editBudget) }}
-            className="text-xs text-terra hover:underline"
-          >
+          <button onClick={openEditBudget} className="text-xs text-terra hover:underline">
             ✏️ Editar
           </button>
         </div>
@@ -99,16 +140,19 @@ export default function Budget() {
             <div>
               <label className="text-xs text-gray-500 block mb-1">Orçamento total (€)</label>
               <input
-                type="number" value={tempTotal}
-                onChange={(e) => setTempTotal(e.target.value)}
+                type="number"
+                value={tempTotal}
+                onChange={e => setTempTotal(e.target.value)}
                 className="border border-sand rounded-lg px-3 py-2 text-sm w-36 bg-white"
               />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Taxa EUR → BRL</label>
               <input
-                type="number" step="0.01" value={tempRate}
-                onChange={(e) => setTempRate(e.target.value)}
+                type="number"
+                step="0.01"
+                value={tempRate}
+                onChange={e => setTempRate(e.target.value)}
                 className="border border-sand rounded-lg px-3 py-2 text-sm w-28 bg-white"
               />
             </div>
@@ -168,24 +212,33 @@ export default function Budget() {
             <div className="col-span-2">
               <label className="text-xs text-gray-500 block mb-1">Descrição</label>
               <input
-                type="text" value={form.description}
-                onChange={(e) => f('description', e.target.value)}
-                placeholder="Ex: Jantar em Roma" autoFocus
+                type="text"
+                value={form.description}
+                onChange={e => updateField('description', e.target.value)}
+                placeholder="Ex: Jantar em Roma"
+                autoFocus
                 className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
               />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Categoria</label>
-              <select value={form.category} onChange={(e) => f('category', e.target.value)}
-                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white">
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              <select
+                value={form.category}
+                onChange={e => updateField('category', e.target.value)}
+                className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
+              >
+                {CATEGORIES.map(c => (
+                  <option key={c}>{c}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Valor (€)</label>
               <input
-                type="number" step="0.01" value={form.amount}
-                onChange={(e) => f('amount', e.target.value)}
+                type="number"
+                step="0.01"
+                value={form.amount}
+                onChange={e => updateField('amount', e.target.value)}
                 placeholder="0.00"
                 className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
               />
@@ -193,19 +246,24 @@ export default function Budget() {
             <div>
               <label className="text-xs text-gray-500 block mb-1">Data</label>
               <input
-                type="date" value={form.date}
-                onChange={(e) => f('date', e.target.value)}
+                type="date"
+                value={form.date}
+                onChange={e => updateField('date', e.target.value)}
                 className="w-full border border-sand rounded-lg px-3 py-2 text-sm bg-white"
               />
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button onClick={addExpense}
-              className="px-4 py-2 bg-terra text-white rounded-lg text-sm">
+            <button
+              onClick={addExpense}
+              className="px-4 py-2 bg-terra text-white rounded-lg text-sm"
+            >
               Salvar
             </button>
-            <button onClick={() => setShowForm(false)}
-              className="px-4 py-2 text-gray-500 text-sm">
+            <button
+              onClick={() => setShowForm(false)}
+              className="px-4 py-2 text-gray-500 text-sm"
+            >
               Cancelar
             </button>
           </div>
@@ -222,7 +280,8 @@ export default function Budget() {
                 <PieChart>
                   <Pie
                     data={byCategory}
-                    cx="50%" cy="50%"
+                    cx="50%"
+                    cy="50%"
                     innerRadius={55}
                     outerRadius={85}
                     paddingAngle={3}
@@ -232,14 +291,17 @@ export default function Budget() {
                       <Cell key={i} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v) => `€ ${fmt(v)}`} />
+                  <Tooltip formatter={(v: number) => `€ ${fmt(v)}`} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
             <div className="w-full space-y-2.5">
-              {byCategory.map((cat) => (
+              {byCategory.map(cat => (
                 <div key={cat.name} className="flex items-center gap-2.5">
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  <div
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: cat.color }}
+                  />
                   <span className="text-sm text-gray-600 flex-1">{cat.name}</span>
                   <span className="text-sm font-semibold text-ink tabular-nums">
                     € {fmt(cat.value)}
@@ -258,14 +320,14 @@ export default function Budget() {
       <div className="space-y-2">
         {[...expenses]
           .sort((a, b) => b.date.localeCompare(a.date))
-          .map((expense) => (
+          .map(expense => (
             <div
               key={expense.id}
               className="bg-white rounded-2xl border border-sand px-4 py-3 flex items-center gap-3"
             >
               <div
                 className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: CAT_COLORS[CATEGORIES.indexOf(expense.category)] || '#888' }}
+                style={{ backgroundColor: CAT_COLORS[expense.category] }}
               />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-ink truncate">{expense.description}</p>
@@ -275,7 +337,9 @@ export default function Budget() {
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-sm font-semibold text-ink tabular-nums">€ {fmt(expense.amount)}</p>
+                <p className="text-sm font-semibold text-ink tabular-nums">
+                  € {fmt(expense.amount)}
+                </p>
                 <p className="text-xs text-gray-400 tabular-nums">
                   R$ {fmt(expense.amount * budget.brlRate)}
                 </p>
